@@ -66,6 +66,40 @@ function Require-Command([string]$cmd) {
     Write-Ok "$cmd found"
 }
 
+function Find-MSBuild {
+    if (Get-Command msbuild -ErrorAction SilentlyContinue) { return }
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        Write-Fail "vswhere not found; Visual Studio may not be installed"
+        throw "Missing requirement: vswhere"
+    }
+    $msb = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\amd64\MSBuild.exe" | Select-Object -First 1
+    if (-not $msb) {
+        $msb = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+    }
+    if (-not $msb -or -not (Test-Path $msb)) {
+        Write-Fail "MSBuild not found via vswhere"
+        throw "Missing requirement: msbuild"
+    }
+    $env:PATH = "$(Split-Path $msb);$env:PATH"
+    Write-Ok "msbuild located at $msb (added to PATH)"
+}
+
+function Find-7z {
+    if (Get-Command 7z -ErrorAction SilentlyContinue) { return }
+    $candidates = @(
+        "C:\Program Files\7-Zip\7z.exe",
+        "C:\Program Files (x86)\7-Zip\7z.exe"
+    )
+    $exe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $exe) {
+        Write-Fail "7-Zip not found; install it or add 7z to PATH"
+        throw "Missing requirement: 7z"
+    }
+    $env:PATH = "$(Split-Path $exe);$env:PATH"
+    Write-Ok "7z located at $exe (added to PATH)"
+}
+
 function Download-SDL2 {
     param([string]$Ver = "2.28.5")
     $sdlDir = "SDL2-$Ver"
@@ -123,6 +157,8 @@ if (-not (Test-Path "CMakeLists.txt") -or -not (Test-Path "src\whisper.cpp")) {
 }
 
 Require-Command cmake
+Find-MSBuild
+Find-7z
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 # ── Build functions ───────────────────────────────────────────────────────────
